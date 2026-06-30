@@ -1,5 +1,5 @@
 import type { ScanCheck, SiteProfile } from '../types';
-import { fetchTextResource, isLikelyJson } from '../utils/http';
+import { describeFallback, fetchTextResource, isLikelyJson, isSpaHtmlFallback } from '../utils/http';
 import { clampText } from '../utils/text';
 
 interface WellKnownTarget {
@@ -20,7 +20,7 @@ const TARGETS: WellKnownTarget[] = [
     maxScore: 8,
     appliesTo: ['api', 'app', 'docs', 'saas'],
     expectJson: true,
-    fix: 'If the site exposes tools or resources through MCP, publish a server card under /.well-known/mcp/server-card.json or /.well-known/mcp.json.'
+    fix: 'If the site exposes tools or resources through MCP, publish a server card under /.well-known/mcp/server-card.json or /.well-known/mcp.json. If it does not expose agent tools, mark this capability as not applicable.'
   },
   {
     id: 'agent_skills',
@@ -29,7 +29,7 @@ const TARGETS: WellKnownTarget[] = [
     maxScore: 8,
     appliesTo: ['api', 'app', 'saas'],
     expectJson: true,
-    fix: 'Publish an agent skills index when the website exposes reusable actions for AI agents.'
+    fix: 'Publish an agent skills index only when the website exposes reusable actions for AI agents. Otherwise configure the server to return 404 instead of SPA HTML fallback.'
   },
   {
     id: 'oauth_authorization_server',
@@ -38,7 +38,7 @@ const TARGETS: WellKnownTarget[] = [
     maxScore: 5,
     appliesTo: ['api', 'app', 'saas'],
     expectJson: true,
-    fix: 'If agents need authenticated access, publish OAuth authorization server metadata.'
+    fix: 'If agents need authenticated access, publish OAuth authorization server metadata. Otherwise return 404 instead of SPA HTML fallback.'
   },
   {
     id: 'oauth_protected_resource',
@@ -47,7 +47,7 @@ const TARGETS: WellKnownTarget[] = [
     maxScore: 5,
     appliesTo: ['api', 'app', 'saas'],
     expectJson: true,
-    fix: 'If the site exposes protected resources to agents, publish OAuth protected resource metadata.'
+    fix: 'If the site exposes protected resources to agents, publish OAuth protected resource metadata. Otherwise return 404 instead of SPA HTML fallback.'
   },
   {
     id: 'api_catalog',
@@ -56,7 +56,7 @@ const TARGETS: WellKnownTarget[] = [
     maxScore: 6,
     appliesTo: ['api', 'docs', 'saas'],
     expectJson: true,
-    fix: 'If the website has public APIs, publish an API catalog endpoint or link to OpenAPI specs.'
+    fix: 'If the website has public APIs, publish an API catalog endpoint or link to OpenAPI specs. Otherwise return 404 instead of SPA HTML fallback.'
   },
   {
     id: 'web_bot_auth',
@@ -65,7 +65,7 @@ const TARGETS: WellKnownTarget[] = [
     maxScore: 5,
     appliesTo: ['api', 'saas', 'ecommerce', 'content', 'docs'],
     expectJson: true,
-    fix: 'For authenticated bot verification, publish a Web Bot Auth HTTP message signatures directory when relevant.'
+    fix: 'For authenticated bot verification, publish a Web Bot Auth HTTP message signatures directory when relevant. Otherwise return 404 instead of SPA HTML fallback.'
   },
   {
     id: 'x402_payment',
@@ -100,6 +100,8 @@ async function checkWellKnownEndpoint(origin: string, target: WellKnownTarget, s
     };
   }
 
+  const fallbackEvidence: string[] = [];
+
   for (const path of target.paths) {
     const url = `${origin}${path}`;
 
@@ -108,26 +110,66 @@ async function checkWellKnownEndpoint(origin: string, target: WellKnownTarget, s
 
       if (!resource.ok) continue;
 
+      if (isSpaHtmlFallback(resource, path)) {
+        fallbackEvidence.push(describeFallback(resource));
+        continue;
+      }
+
       const looksJson = target.expectJson ? isLikelyJson(resource.contentType, resource.text) : true;
+
+      if (!looksJson) {
+        return {
+          id: target.id,
+          title: target.title,
+          category: 'protocol',
+          status: 'fail',
+          score: 0,
+          maxScore: target.maxScore,
+          optional: true,
+          appliesTo: target.appliesTo,
+          severity: 'medium',
+          effort: 'medium',
+          message: `${path} exists but does not return valid JSON or expected machine-readable content.`,
+          evidence: clampText(resource.text, 400),
+          fix: 'Return valid JSON with the appropriate content-type for this endpoint, or return 404 if the capability is not implemented.'
+        };
+      }
 
       return {
         id: target.id,
         title: target.title,
         category: 'protocol',
-        status: looksJson ? 'pass' : 'warning',
-        score: looksJson ? target.maxScore : Math.round(target.maxScore * 0.5),
+        status: 'pass',
+        score: target.maxScore,
         maxScore: target.maxScore,
         optional: true,
         appliesTo: target.appliesTo,
-        severity: looksJson ? 'low' : 'medium',
-        effort: looksJson ? 'low' : 'medium',
-        message: looksJson ? `${path} found.` : `${path} found but does not look like valid JSON.`,
-        evidence: clampText(resource.text, 400),
-        fix: looksJson ? undefined : 'Return valid JSON and the appropriate content-type for this well-known endpoint.'
+        severity: 'low',
+        effort: 'low',
+        message: `${path} found and appears machine-readable.`,
+        evidence: clampText(resource.text, 400)
       };
     } catch {
       // Continue with the next candidate path.
     }
+  }
+
+  if (fallbackEvidence.length > 0) {
+    return {
+      id: target.id,
+      title: target.title,
+      category: 'protocol',
+      status: 'warning',
+      score: 0,
+      maxScore: target.maxScore,
+      optional: true,
+      appliesTo: target.appliesTo,
+      severity: 'medium',
+      effort: 'low',
+      message: `${target.title} route appears to be handled by SPA HTML fallback, not a real machine-readable endpoint.`,
+      evidence: fallbackEvidence[0],
+      fix: target.fix
+    };
   }
 
   return {
