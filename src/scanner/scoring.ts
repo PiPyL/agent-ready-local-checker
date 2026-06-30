@@ -39,10 +39,18 @@ export function calculateScoreBreakdown(checks: ScanCheck[], siteProfiles: SiteP
 
 export function isScoredCheck(check: ScanCheck, siteProfiles: SiteProfile[]): boolean {
   if (check.status === 'not_applicable') return false;
-  if (check.optional && check.status !== 'pass') return false;
-  if (!check.appliesTo || check.appliesTo.length === 0) return true;
-  if (siteProfiles.includes('unknown')) return true;
-  return check.appliesTo.some((profile) => siteProfiles.includes(profile));
+  if (check.maxScore <= 0) return false;
+
+  const hasProfileConstraint = Boolean(check.appliesTo && check.appliesTo.length > 0);
+  const profileMatches = !hasProfileConstraint || siteProfiles.includes('unknown') || check.appliesTo!.some((profile) => siteProfiles.includes(profile));
+
+  if (!profileMatches) return false;
+
+  // Optional checks should not penalize generic sites when absent, but should be scored when
+  // they are relevant to the inferred profile or when the endpoint exists but is invalid.
+  if (check.optional && !hasProfileConstraint && check.status !== 'pass' && check.status !== 'fail') return false;
+
+  return true;
 }
 
 export function getGrade(score: number): ScanGrade {
@@ -79,5 +87,11 @@ export function getPriorityScore(check: ScanCheck): number {
     not_applicable: 0
   }[check.status];
 
-  return severityWeight * statusWeight;
+  const effortBonus = {
+    low: 1.2,
+    medium: 1,
+    high: 0.8
+  }[check.effort || 'medium'];
+
+  return severityWeight * statusWeight * effortBonus;
 }
