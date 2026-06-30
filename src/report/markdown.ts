@@ -46,7 +46,7 @@ export function generateMarkdownReport(result: ScanResult): string {
     lines.push('');
     lines.push(`- Category: ${check.category}`);
     lines.push(`- Status: ${check.status}`);
-    lines.push(`- Score: ${check.score}/${check.maxScore}`);
+    lines.push(`- Score: ${check.maxScore > 0 ? `${check.score}/${check.maxScore}` : 'N/A'}`);
     lines.push(`- Severity: ${check.severity || 'medium'}`);
     if (check.effort) lines.push(`- Effort: ${check.effort}`);
     lines.push(`- Message: ${check.message}`);
@@ -83,6 +83,8 @@ export function generateFixPrompt(result: ScanResult): string {
   lines.push(`Detected site profile: ${result.siteProfiles.join(', ')}`);
   lines.push(`Current score: ${result.score}/100 (${result.grade})`);
   lines.push('');
+  lines.push('Important rule: machine-readable routes such as /llms.txt, /llms-full.txt, /.well-known/*.json, /openapi.json, and Markdown fallback URLs must return real static text/JSON/Markdown. Do not let the SPA catch-all route return index.html for these paths.');
+  lines.push('');
   lines.push('Prioritize fixes by SEO/GEO impact and implementation effort:');
 
   priorityIssues.slice(0, 12).forEach((check, index) => {
@@ -94,7 +96,7 @@ export function generateFixPrompt(result: ScanResult): string {
   });
 
   lines.push('');
-  lines.push('Return concrete code changes, file paths, test commands, curl verification commands, and expected before/after results. Do not use any external API unless explicitly required by the codebase.');
+  lines.push('Return concrete code changes, file paths, test commands, curl verification commands, and expected before/after results. Include examples using curl -H "Accept: text/markdown" and curl -I for static machine-readable files. Do not use any external API unless explicitly required by the codebase.');
 
   return lines.join('\n');
 }
