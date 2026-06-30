@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "AgentReady Local Checker",
+  "version": "0.1.0",
+  "description": "Check whether the current website is ready for AI agents. Fully local.",
+  "permissions": ["activeTab", "tabs", "storage", "scripting"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
