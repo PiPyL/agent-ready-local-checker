@@ -10,9 +10,9 @@
 
 body {
   margin: 0;
-  min-width: 420px;
-  max-width: 420px;
-  min-height: 560px;
+  min-width: 460px;
+  max-width: 460px;
+  min-height: 640px;
   background: #f8fafc;
 }
 
@@ -45,7 +45,7 @@ button:disabled {
 .eyebrow {
   margin: 0 0 4px;
   color: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   opacity: 0.75;
@@ -112,6 +112,7 @@ h1 {
   margin-bottom: 0;
   color: #475569;
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .summary-grid {
@@ -152,10 +153,65 @@ h1 {
   background: #e0f2fe;
 }
 
+.breakdown-card,
+.priority-card {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.breakdown-card h3,
+.priority-card h3 {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.breakdown-list {
+  display: grid;
+  gap: 6px;
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.priority-item {
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-left-width: 5px;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.priority-item + .priority-item {
+  margin-top: 8px;
+}
+
+.priority-item strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.priority-item p {
+  margin-bottom: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .checks-list {
   display: grid;
   gap: 10px;
-  max-height: 310px;
+  max-height: 330px;
   overflow: auto;
   padding-right: 4px;
 }
@@ -187,6 +243,22 @@ h1 {
   line-height: 1.45;
 }
 
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.meta-row span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #334155;
+  background: #f1f5f9;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .fix {
   margin-top: 8px;
   padding: 8px;
@@ -208,4 +280,9 @@ h1 {
 
 .status-unknown {
   border-left-color: #94a3b8;
+}
+
+.status-not_applicable {
+  border-left-color: #cbd5e1;
+  opacity: 0.82;
 }
