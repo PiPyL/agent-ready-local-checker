@@ -1,22 +1,31 @@
-import type { ScanCheck, SiteProfile } from '../types';
-import { fetchTextResource, isLikelyJson } from '../utils/http';
+import type { DomInsight, ScanCheck, SiteProfile } from '../types';
+import { describeFallback, fetchTextResource, isLikelyJson, isSpaHtmlFallback } from '../utils/http';
 import { clampText } from '../utils/text';
 
 const OPENAPI_CANDIDATES = ['/openapi.json', '/swagger.json', '/api/openapi.json', '/api/swagger.json'];
 
-export async function checkApiDiscovery(origin: string, siteProfiles: SiteProfile[]): Promise<ScanCheck[]> {
-  const apiRelevant = siteProfiles.some((profile) => ['api', 'saas', 'docs', 'app'].includes(profile));
+export async function checkApiDiscovery(origin: string, siteProfiles: SiteProfile[], dom: DomInsight | null): Promise<ScanCheck[]> {
+  const apiRelevant = isApiRelevant(siteProfiles, dom);
   const openApiCheck = await checkOpenApiSpec(origin, apiRelevant);
   return [openApiCheck];
 }
 
 async function checkOpenApiSpec(origin: string, apiRelevant: boolean): Promise<ScanCheck> {
+  const fallbackEvidence: string[] = [];
+
   for (const path of OPENAPI_CANDIDATES) {
     const url = `${origin}${path}`;
 
     try {
       const resource = await fetchTextResource(url, { headers: { Accept: 'application/json, text/plain;q=0.8' } }, 600_000);
-      if (!resource.ok || !isLikelyJson(resource.contentType, resource.text)) continue;
+      if (!resource.ok) continue;
+
+      if (isSpaHtmlFallback(resource, path)) {
+        fallbackEvidence.push(describeFallback(resource));
+        continue;
+      }
+
+      if (!isLikelyJson(resource.contentType, resource.text)) continue;
 
       const parsed = JSON.parse(resource.text) as Record<string, unknown>;
       const hasOpenApi = typeof parsed.openapi === 'string' || typeof parsed.swagger === 'string';
@@ -43,18 +52,52 @@ async function checkOpenApiSpec(origin: string, apiRelevant: boolean): Promise<S
     }
   }
 
+  if (!apiRelevant) {
+    return {
+      id: 'openapi_discovery',
+      title: 'OpenAPI discovery',
+      category: 'protocol',
+      status: 'not_applicable',
+      score: 0,
+      maxScore: 0,
+      optional: true,
+      appliesTo: ['api', 'saas', 'docs', 'app'],
+      severity: 'info',
+      effort: 'medium',
+      message: 'OpenAPI discovery is not applicable because no public API/developer-docs intent was detected.'
+    };
+  }
+
   return {
     id: 'openapi_discovery',
     title: 'OpenAPI discovery',
     category: 'protocol',
-    status: apiRelevant ? 'warning' : 'not_applicable',
+    status: 'warning',
     score: 0,
-    maxScore: apiRelevant ? 8 : 0,
-    optional: !apiRelevant,
+    maxScore: 8,
+    optional: false,
     appliesTo: ['api', 'saas', 'docs', 'app'],
-    severity: apiRelevant ? 'medium' : 'info',
+    severity: 'medium',
     effort: 'medium',
-    message: apiRelevant ? 'No OpenAPI/Swagger spec was discovered at common paths.' : 'OpenAPI discovery is not applicable for this page profile.',
-    fix: apiRelevant ? 'Expose OpenAPI at /openapi.json or link it from docs/API catalog so agents can understand available endpoints.' : undefined
+    message: fallbackEvidence.length > 0
+      ? 'OpenAPI candidate paths appear to be handled by SPA HTML fallback, not real API specs.'
+      : 'No OpenAPI/Swagger spec was discovered at common paths.',
+    evidence: fallbackEvidence[0],
+    fix: fallbackEvidence.length > 0
+      ? 'If the site has a public API, serve a real /openapi.json before SPA fallback. If not, configure these paths to return 404 and mark OpenAPI as not applicable.'
+      : 'Expose OpenAPI at /openapi.json or link it from docs/API catalog when the product has a public API.'
   };
+}
+
+function isApiRelevant(siteProfiles: SiteProfile[], dom: DomInsight | null): boolean {
+  if (siteProfiles.includes('api') || siteProfiles.includes('docs')) return true;
+
+  const text = [
+    dom?.title || '',
+    dom?.metaDescription || '',
+    ...(dom?.headings.map((heading) => heading.text) || []),
+    ...(dom?.links.map((link) => `${link.text} ${link.href}`) || [])
+  ].join(' ').toLowerCase();
+
+  return /\b(api|developer|developers|openapi|swagger|webhook|sdk|endpoint|graphql|rest api|api key)\b/.test(text);
 }
