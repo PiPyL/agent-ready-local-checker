@@ -29,7 +29,7 @@ export async function runLocalScan(url: string, domInsight: DomInsight | null = 
   checks.push(...checkDomReadiness(url, domInsight, siteProfiles));
   checks.push(...checkStructuredData(domInsight, siteProfiles));
   checks.push(...(await checkApiDiscovery(origin, siteProfiles, domInsight)));
-  checks.push(...(await checkWellKnownEndpoints(origin, siteProfiles)));
+  checks.push(...(await checkWellKnownEndpoints(origin, siteProfiles, domInsight)));
 
   const scoreBreakdown = calculateScoreBreakdown(checks, siteProfiles);
   const score = calculateScore(checks, siteProfiles);
