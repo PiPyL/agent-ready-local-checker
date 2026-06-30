@@ -1,5 +1,5 @@
 import type { ScanCheck } from '../types';
-import { fetchTextResource, isLikelyHtml } from '../utils/http';
+import { describeFallback, fetchTextResource, isLikelyHtml, isSpaHtmlFallback } from '../utils/http';
 import { clampText, stripHtml } from '../utils/text';
 
 export async function checkMarkdownReadiness(pageUrl: string): Promise<ScanCheck[]> {
@@ -92,10 +92,18 @@ async function checkMarkdownFallback(pageUrl: string): Promise<ScanCheck> {
     `${target.origin}${normalizeDirectoryPath(target.pathname)}index.md`,
     `${target.origin}${target.pathname.replace(/\/$/, '')}.md`
   ];
+  const fallbackEvidence: string[] = [];
 
   for (const candidate of [...new Set(candidates)]) {
     try {
+      const path = new URL(candidate).pathname;
       const res = await fetchTextResource(candidate, { headers: { Accept: 'text/markdown, text/plain;q=0.9' } }, 300_000);
+
+      if (isSpaHtmlFallback(res, path)) {
+        fallbackEvidence.push(describeFallback(res));
+        continue;
+      }
+
       if (res.ok && looksLikeMarkdown(res.text, res.contentType) && !isLikelyHtml(res.contentType, res.text)) {
         return {
           id: 'markdown_fallback',
@@ -126,8 +134,13 @@ async function checkMarkdownFallback(pageUrl: string): Promise<ScanCheck> {
     optional: true,
     severity: 'low',
     effort: 'low',
-    message: 'No /index.md or .md fallback was found for the current page.',
-    fix: 'Optionally provide Markdown fallback URLs for agents that cannot negotiate Accept: text/markdown.'
+    message: fallbackEvidence.length > 0
+      ? 'Markdown fallback candidates are handled by SPA HTML fallback instead of real Markdown files.'
+      : 'No /index.md or .md fallback was found for the current page.',
+    evidence: fallbackEvidence[0],
+    fix: fallbackEvidence.length > 0
+      ? 'Serve real static Markdown files before the SPA catch-all route, or return 404 for missing .md files.'
+      : 'Optionally provide Markdown fallback URLs for agents that cannot negotiate Accept: text/markdown.'
   };
 }
 
