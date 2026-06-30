@@ -14,9 +14,7 @@ export async function fetchTextResource(url: string, init: RequestInit = {}, max
     redirect: 'follow',
     cache: 'no-store',
     ...init,
-    headers: {
-      ...(init.headers || {})
-    }
+    headers: normalizeRequestHeaders(init.headers)
   });
 
   const headers = headersToRecord(res.headers);
@@ -51,6 +49,17 @@ export function isLikelyJson(contentType: string, text: string): boolean {
   } catch {
     return false;
   }
+}
+
+function normalizeRequestHeaders(headersInit?: HeadersInit): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (!headersInit) return headers;
+
+  new Headers(headersInit).forEach((value, key) => {
+    headers[key] = value;
+  });
+
+  return headers;
 }
 
 function headersToRecord(headers: Headers): Record<string, string> {
