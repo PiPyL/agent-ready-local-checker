@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { generateFixPrompt, generateMarkdownReport } from '../report/markdown';
 import type { ScanResult } from '../scanner/types';
-import { summarizeStatus } from '../scanner/scoring';
+import { getPriorityScore, summarizeStatus } from '../scanner/scoring';
 
 interface RuntimeResponse<T> {
   ok: boolean;
@@ -15,6 +15,15 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   const summary = useMemo(() => (scanResult ? summarizeStatus(scanResult.checks) : null), [scanResult]);
+  const priorityIssues = useMemo(
+    () => scanResult
+      ? scanResult.checks
+        .filter((check) => check.status === 'fail' || check.status === 'warning' || check.status === 'unknown')
+        .sort((a, b) => getPriorityScore(b) - getPriorityScore(a))
+        .slice(0, 5)
+      : [],
+    [scanResult]
+  );
 
   async function runScan() {
     setLoading(true);
@@ -63,9 +72,9 @@ export function App() {
     <main className="app-shell">
       <header className="hero">
         <div>
-          <p className="eyebrow">Local-first</p>
+          <p className="eyebrow">Local-first SEO/GEO audit</p>
           <h1>AgentReady Checker</h1>
-          <p className="subtitle">Audit the current website for AI agent readiness. No backend. No tracking.</p>
+          <p className="subtitle">Audit crawlability, indexability, structured data, llms.txt, Markdown, and agent protocols. No backend. No tracking.</p>
         </div>
         <button className="primary-button" onClick={runScan} disabled={loading}>
           {loading ? 'Scanning…' : 'Scan current tab'}
@@ -80,13 +89,13 @@ export function App() {
             <div>
               <p className="eyebrow">{scanResult.domain}</p>
               <h2>{scanResult.score}/100</h2>
-              <p className="grade">{scanResult.grade}</p>
+              <p className="grade">{scanResult.grade} · {scanResult.siteProfiles.join(', ')}</p>
             </div>
             <div className="summary-grid" aria-label="Status summary">
               <StatusPill label="Pass" value={summary.pass} />
               <StatusPill label="Warn" value={summary.warning} />
               <StatusPill label="Fail" value={summary.fail} />
-              <StatusPill label="Unknown" value={summary.unknown} />
+              <StatusPill label="N/A" value={summary.not_applicable} />
             </div>
           </div>
 
@@ -94,6 +103,31 @@ export function App() {
             <button onClick={copyFixPrompt}>Copy fix prompt</button>
             <button onClick={copyMarkdownReport}>Copy report</button>
           </div>
+
+          <section className="breakdown-card">
+            <h3>Score breakdown</h3>
+            <div className="breakdown-list">
+              {scanResult.scoreBreakdown.map((item) => (
+                <div className="breakdown-item" key={item.category}>
+                  <span>{item.category}</span>
+                  <strong>{item.percentage}%</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {priorityIssues.length > 0 && (
+            <section className="priority-card">
+              <h3>Top priority fixes</h3>
+              {priorityIssues.map((check) => (
+                <article className={`priority-item status-${check.status}`} key={check.id}>
+                  <strong>{check.title}</strong>
+                  <p>{check.message}</p>
+                  {check.fix && <p className="fix">{check.fix}</p>}
+                </article>
+              ))}
+            </section>
+          )}
 
           <div className="checks-list">
             {scanResult.checks.map((check) => (
@@ -103,7 +137,12 @@ export function App() {
                     <h3>{check.title}</h3>
                     <p>{check.message}</p>
                   </div>
-                  <strong>{check.score}/{check.maxScore}</strong>
+                  <strong>{check.maxScore > 0 ? `${check.score}/${check.maxScore}` : 'N/A'}</strong>
+                </div>
+                <div className="meta-row">
+                  <span>{check.category}</span>
+                  <span>{check.severity || 'medium'}</span>
+                  {check.effort && <span>{check.effort}</span>}
                 </div>
                 {check.fix && <p className="fix">Fix: {check.fix}</p>}
               </article>
