@@ -93,6 +93,22 @@ export interface ScoreBreakdownItem {
   percentage: number;
 }
 
+export interface FocusScore {
+  label: 'SEO' | 'GEO';
+  score: number;
+  grade: ScanGrade;
+  categories: CheckCategory[];
+  summary: string;
+}
+
+export interface CriticalWarning {
+  id: string;
+  title: string;
+  message: string;
+  severity: CheckSeverity;
+  fix?: string;
+}
+
 export interface ScanResult {
   url: string;
   origin: string;
@@ -100,6 +116,9 @@ export interface ScanResult {
   scannedAt: string;
   score: number;
   grade: ScanGrade;
+  seoScore: FocusScore;
+  geoScore: FocusScore;
+  criticalWarnings: CriticalWarning[];
   siteProfiles: SiteProfile[];
   scoreBreakdown: ScoreBreakdownItem[];
   checks: ScanCheck[];
