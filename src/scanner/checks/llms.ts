@@ -1,5 +1,5 @@
 import type { ScanCheck } from '../types';
-import { fetchTextResource } from '../utils/http';
+import { describeFallback, fetchTextResource, isLikelyHtml, isSpaHtmlFallback } from '../utils/http';
 import { clampText, uniqueValues } from '../utils/text';
 
 interface LlmsValidation {
@@ -27,6 +27,10 @@ async function checkLlmsFile(origin: string, path: '/llms.txt' | '/llms-full.txt
     const resource = await fetchTextResource(url, {}, 500_000);
 
     if (!resource.ok) {
+      return createMissingLlmsCheck(path, maxScore, required, `${path} was not found.`);
+    }
+
+    if (isSpaHtmlFallback(resource, path) || isLikelyHtml(resource.contentType, resource.text)) {
       return {
         id: path === '/llms.txt' ? 'llms_txt' : 'llms_full_txt',
         title: path,
@@ -35,12 +39,31 @@ async function checkLlmsFile(origin: string, path: '/llms.txt' | '/llms-full.txt
         score: 0,
         maxScore,
         optional: !required,
-        severity: required ? 'high' : 'low',
+        severity: required ? 'high' : 'medium',
         effort: 'low',
-        message: `${path} was not found.`,
-        fix: path === '/llms.txt'
-          ? 'Create /llms.txt with a concise Markdown overview, blockquote summary, curated sections, and high-value links for AI agents.'
-          : 'Optionally create /llms-full.txt for a more complete agent-readable content index.'
+        message: `${path} appears to return HTML fallback instead of a valid agent-readable text file.`,
+        evidence: describeFallback(resource),
+        fix: `Create a real static ${path} file and make sure the web server serves it before the SPA catch-all route.`
+      };
+    }
+
+    const contentType = resource.contentType.toLowerCase();
+    const looksTextLike = contentType.includes('text/plain') || contentType.includes('text/markdown') || contentType === '';
+
+    if (!looksTextLike) {
+      return {
+        id: path === '/llms.txt' ? 'llms_txt' : 'llms_full_txt',
+        title: path,
+        category: 'agent-content',
+        status: 'warning',
+        score: Math.round(maxScore * 0.3),
+        maxScore,
+        optional: !required,
+        severity: 'medium',
+        effort: 'low',
+        message: `${path} returned unexpected content-type: ${resource.contentType || 'unknown'}.`,
+        evidence: describeFallback(resource),
+        fix: `Serve ${path} as text/plain or text/markdown.`
       };
     }
 
@@ -92,6 +115,24 @@ async function checkLlmsFile(origin: string, path: '/llms.txt' | '/llms-full.txt
       fix: 'Check whether the website blocks browser extension requests or redirects this file unexpectedly.'
     };
   }
+}
+
+function createMissingLlmsCheck(path: '/llms.txt' | '/llms-full.txt', maxScore: number, required: boolean, message: string): ScanCheck {
+  return {
+    id: path === '/llms.txt' ? 'llms_txt' : 'llms_full_txt',
+    title: path,
+    category: 'agent-content',
+    status: required ? 'fail' : 'warning',
+    score: 0,
+    maxScore,
+    optional: !required,
+    severity: required ? 'high' : 'low',
+    effort: 'low',
+    message,
+    fix: path === '/llms.txt'
+      ? 'Create /llms.txt with a concise Markdown overview, blockquote summary, curated sections, and high-value links for AI agents.'
+      : 'Optionally create /llms-full.txt for a more complete agent-readable content index.'
+  };
 }
 
 function validateLlmsTxt(text: string, origin: string): LlmsValidation {
