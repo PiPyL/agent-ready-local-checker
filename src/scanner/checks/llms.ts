@@ -1,7 +1,20 @@
 import type { ScanCheck } from '../types';
+import { fetchTextResource } from '../utils/http';
+import { clampText, uniqueValues } from '../utils/text';
+
+interface LlmsValidation {
+  hasH1: boolean;
+  hasSummaryBlockquote: boolean;
+  sectionCount: number;
+  optionalSection: boolean;
+  links: string[];
+  internalLinks: string[];
+  markdownLinkCount: number;
+  wordCount: number;
+}
 
 export async function checkLlmsFiles(origin: string): Promise<ScanCheck[]> {
-  const llmsTxt = await checkLlmsFile(origin, '/llms.txt', 12, true);
+  const llmsTxt = await checkLlmsFile(origin, '/llms.txt', 14, true);
   const llmsFullTxt = await checkLlmsFile(origin, '/llms-full.txt', 6, false);
 
   return [llmsTxt, llmsFullTxt];
@@ -11,9 +24,9 @@ async function checkLlmsFile(origin: string, path: '/llms.txt' | '/llms-full.txt
   const url = `${origin}${path}`;
 
   try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const resource = await fetchTextResource(url, {}, 500_000);
 
-    if (!res.ok) {
+    if (!resource.ok) {
       return {
         id: path === '/llms.txt' ? 'llms_txt' : 'llms_full_txt',
         title: path,
@@ -21,28 +34,33 @@ async function checkLlmsFile(origin: string, path: '/llms.txt' | '/llms-full.txt
         status: required ? 'fail' : 'warning',
         score: 0,
         maxScore,
+        optional: !required,
+        severity: required ? 'high' : 'low',
+        effort: 'low',
         message: `${path} was not found.`,
         fix: path === '/llms.txt'
-          ? 'Create /llms.txt with a concise overview of your product, docs, pricing, support, and key URLs for AI agents.'
+          ? 'Create /llms.txt with a concise Markdown overview, blockquote summary, curated sections, and high-value links for AI agents.'
           : 'Optionally create /llms-full.txt for a more complete agent-readable content index.'
       };
     }
 
-    const text = await res.text();
-    const length = text.trim().length;
-    const hasMarkdownHeading = /^#\s+.+/m.test(text);
+    const validation = validateLlmsTxt(resource.text, origin);
+    const issues = getLlmsIssues(validation, path);
 
-    if (length < 120 || !hasMarkdownHeading) {
+    if (issues.length > 0) {
       return {
         id: path === '/llms.txt' ? 'llms_txt' : 'llms_full_txt',
         title: path,
         category: 'agent-content',
-        status: 'warning',
-        score: Math.round(maxScore * 0.5),
+        status: issues.length >= 3 ? 'warning' : 'pass',
+        score: Math.max(Math.round(maxScore * (issues.length >= 3 ? 0.55 : 0.8)), 1),
         maxScore,
-        message: `${path} exists but looks too thin or not Markdown-like.`,
-        evidence: text.slice(0, 300),
-        fix: 'Use Markdown headings and include a clear summary plus links to important pages.'
+        optional: !required,
+        severity: issues.length >= 3 ? 'medium' : 'low',
+        effort: 'low',
+        message: `${path} exists but can be improved: ${issues.join('; ')}.`,
+        evidence: clampText(resource.text, 700),
+        fix: 'Follow the llms.txt structure: H1 title, blockquote summary, short context, curated ## sections, and Markdown links with concise descriptions.'
       };
     }
 
@@ -53,8 +71,11 @@ async function checkLlmsFile(origin: string, path: '/llms.txt' | '/llms-full.txt
       status: 'pass',
       score: maxScore,
       maxScore,
-      message: `${path} found and appears useful.`,
-      evidence: text.slice(0, 300)
+      optional: !required,
+      severity: 'low',
+      effort: 'low',
+      message: `${path} found and follows a useful agent-readable Markdown structure with ${validation.markdownLinkCount} curated link(s).`,
+      evidence: clampText(resource.text, 700)
     };
   } catch {
     return {
@@ -64,8 +85,52 @@ async function checkLlmsFile(origin: string, path: '/llms.txt' | '/llms-full.txt
       status: 'unknown',
       score: 0,
       maxScore,
+      optional: !required,
+      severity: required ? 'high' : 'low',
+      effort: 'medium',
       message: `Could not verify ${path}.`,
-      fix: 'Check whether the website blocks browser extension requests.'
+      fix: 'Check whether the website blocks browser extension requests or redirects this file unexpectedly.'
     };
+  }
+}
+
+function validateLlmsTxt(text: string, origin: string): LlmsValidation {
+  const trimmed = text.trim();
+  const markdownLinks = [...trimmed.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)].map((match) => match[2].trim());
+  const absoluteLinks = markdownLinks
+    .map((link) => toAbsoluteUrl(link, origin))
+    .filter((link): link is string => Boolean(link));
+
+  return {
+    hasH1: /^#\s+\S+/m.test(trimmed),
+    hasSummaryBlockquote: /^>\s+\S+/m.test(trimmed),
+    sectionCount: (trimmed.match(/^##\s+\S+/gm) || []).length,
+    optionalSection: /^##\s+Optional\b/im.test(trimmed),
+    links: uniqueValues(absoluteLinks),
+    internalLinks: uniqueValues(absoluteLinks.filter((link) => link.startsWith(origin))),
+    markdownLinkCount: markdownLinks.length,
+    wordCount: trimmed.split(/\s+/).filter(Boolean).length
+  };
+}
+
+function getLlmsIssues(validation: LlmsValidation, path: string): string[] {
+  const issues: string[] = [];
+
+  if (!validation.hasH1) issues.push('missing H1 title');
+  if (!validation.hasSummaryBlockquote) issues.push('missing blockquote summary');
+  if (validation.sectionCount < 2) issues.push('needs at least two curated sections');
+  if (validation.markdownLinkCount < 3) issues.push('too few Markdown links');
+  if (path === '/llms.txt' && validation.wordCount > 1200) issues.push('too long for a concise llms.txt entry point');
+  if (path === '/llms-full.txt' && validation.wordCount < 300) issues.push('too short for a full content index');
+  if (validation.internalLinks.length === 0) issues.push('no internal curated links detected');
+
+  return issues;
+}
+
+function toAbsoluteUrl(value: string, origin: string): string | null {
+  try {
+    return new URL(value, origin).href;
+  } catch {
+    return null;
   }
 }
