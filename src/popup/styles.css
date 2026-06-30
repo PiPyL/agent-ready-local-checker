@@ -140,6 +140,114 @@ h1 {
   font-size: 18px;
 }
 
+.focus-card {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.focus-score {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.focus-score span,
+.focus-score em {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.focus-score strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.focus-good {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.focus-warning {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.focus-critical {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.critical-card,
+.breakdown-card,
+.priority-card {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.critical-card {
+  border-color: #fecaca;
+  background: #fff7ed;
+}
+
+.critical-card h3,
+.breakdown-card h3,
+.priority-card h3 {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.critical-item {
+  padding: 10px;
+  border: 1px solid #fecaca;
+  border-left-width: 5px;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.critical-item + .critical-item {
+  margin-top: 8px;
+}
+
+.critical-item strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.critical-item p {
+  margin-bottom: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.severity-critical,
+.severity-high {
+  border-left-color: #ef4444;
+}
+
+.severity-medium {
+  border-left-color: #f59e0b;
+}
+
+.severity-low,
+.severity-info {
+  border-left-color: #94a3b8;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -151,21 +259,6 @@ h1 {
   padding: 10px;
   color: #0f172a;
   background: #e0f2fe;
-}
-
-.breakdown-card,
-.priority-card {
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #f8fafc;
-}
-
-.breakdown-card h3,
-.priority-card h3 {
-  margin-bottom: 10px;
-  font-size: 13px;
 }
 
 .breakdown-list {
