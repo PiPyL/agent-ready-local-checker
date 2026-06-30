@@ -89,7 +89,7 @@ export function App() {
             <div>
               <p className="eyebrow">{scanResult.domain}</p>
               <h2>{scanResult.score}/100</h2>
-              <p className="grade">{scanResult.grade} · {scanResult.siteProfiles.join(', ')}</p>
+              <p className="grade">Overall: {scanResult.grade} · {scanResult.siteProfiles.join(', ')}</p>
             </div>
             <div className="summary-grid" aria-label="Status summary">
               <StatusPill label="Pass" value={summary.pass} />
@@ -98,6 +98,24 @@ export function App() {
               <StatusPill label="N/A" value={summary.not_applicable} />
             </div>
           </div>
+
+          <section className="focus-card">
+            <FocusScore label="SEO" score={scanResult.seoScore.score} grade={scanResult.seoScore.grade} />
+            <FocusScore label="GEO" score={scanResult.geoScore.score} grade={scanResult.geoScore.grade} />
+          </section>
+
+          {scanResult.criticalWarnings.length > 0 && (
+            <section className="critical-card">
+              <h3>Critical warnings</h3>
+              {scanResult.criticalWarnings.map((warning) => (
+                <article className={`critical-item severity-${warning.severity}`} key={warning.id}>
+                  <strong>{warning.title}</strong>
+                  <p>{warning.message}</p>
+                  {warning.fix && <p className="fix">{warning.fix}</p>}
+                </article>
+              ))}
+            </section>
+          )}
 
           <div className="actions">
             <button onClick={copyFixPrompt}>Copy fix prompt</button>
@@ -159,6 +177,16 @@ function StatusPill({ label, value }: { label: string; value: number }) {
     <div className="status-pill">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function FocusScore({ label, score, grade }: { label: string; score: number; grade: string }) {
+  return (
+    <div className={`focus-score ${score < 50 ? 'focus-critical' : score < 70 ? 'focus-warning' : 'focus-good'}`}>
+      <span>{label}</span>
+      <strong>{score}/100</strong>
+      <em>{grade}</em>
     </div>
   );
 }
