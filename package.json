@@ -1,0 +1,25 @@
+{
+  "name": "agent-ready-local-checker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Privacy-first Chrome extension to audit whether a website is ready for AI agents. Fully local.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/chrome": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}
